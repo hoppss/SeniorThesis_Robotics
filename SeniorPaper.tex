@@ -1,0 +1,988 @@
+\documentclass[12pt]{article}
+
+% Default margins are too wide all the way around. we reset them here
+\setlength{\topmargin}{-.5in}
+\setlength{\textheight}{9in}
+\setlength{\oddsidemargin}{.125in}
+\setlength{\textwidth}{6.25in}
+
+% Title Page
+\title{Vision-Based Navigation, Map Building and Formation Control of Mobile Robots}
+\author{Daniel Kulas\\
+Mentor: Dr. Jing Wang\\ \\
+Bethune-Cookman University\\Computer Engineering}
+
+
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{cite}
+\usepackage[english]{babel}
+\usepackage{algorithmic}
+\usepackage{amsmath,amssymb}
+\usepackage{pdfpages}
+
+\usepackage{listings}
+\usepackage{color}
+
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+
+\lstset{frame=tb,
+  language=C++,
+  aboveskip=3mm,
+  belowskip=3mm,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\small\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dkgreen},
+  stringstyle=\color{mauve},
+  breaklines=true,
+  breakatwhitespace=true
+  tabsize=1
+}
+
+
+
+
+
+\onehalfspacing
+\begin{document}
+\maketitle
+
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+\newpage
+\begin{abstract}
+
+Through the use of image processing techniques, localization and fuzzy logic, and robot control laws, we will present three different implementations of robot control on a nonholonomic robot. We first start off by giving a brief overview of where robots stand at today with our current technology. Then discuss the first portion of the experiments by covering commonly used image processing techniques that allowed us to make use of a pin-hole camera to control robot movement by developing control algorithms to follow a colored line and by using stereo-vision, developed a program for a robot to follow a ball. Next, by incorporating fuzzy logic and our robot's array of sonars, we present our implementations of building a map of an unknown, static environment while keeping track of the robot in the world frame. Finally, by using the specified robot model, we derive control laws that allow a group of three robots to drive in a specified trajectory and formation.
+
+\end{abstract}
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\newpage
+
+\tableofcontents
+
+\newpage
+
+\listoffigures
+
+\newpage
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\section{Introduction}
+In recent years, there has been an explosion in robotics thanks to the ever increasing computation speed and reduced costs of computers as stated by Moore's Law. As robotics have been strictly employed by the military, industry, and scientific research in the past, we are now witnessing a breach in the consumer space that will affect the way we live our lives. Google's Driveless Car has seen much success as their vehicle has driven over 200,000 miles without issue and without human intervention. The robotic vacuum cleaner, Roomba, made its way into the market in 2001 and is able to vacuum the home of the consumer without intervention. A robotic lawnmower, LawnBott, is able to cut the grass around ones home without issue through the use of its many sensors. 
+
+Boston Dynamics was given a grant by the Defense Advanced Research Projects Agency (DARPA) to create more advanced robotics for use in the military. In 2009, they unvield an impressive, four legged robot called "Big Dog". Big Dog can travel across a wide range of terrains with incredible stability. The company has demonstrated the robot walking across icy surfaces with the robot able to recover itself in the event of it slipping and have shown the robot climbing over very rocky terrains without falling over. They have shown their robot is able to run and jump over a gap of a few feet without any issues. Boston Dynamics also developed another robot called "PETMAN" which is a humanoid robot, as in it has two legs, a torso, and two arms, that also incorporates the same sophisticated stability as Big Dog has shown. They demonstrated the robot doing push-ups, crouching while turning at its waist, walking and being shoved to show its recovery abilities to not fall over. 
+
+
+% % % % % % % % % %	Need to be side by side % % % % % % % % % 
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=1.5in]{big-dog.jpg}
+		\caption{Boston Dynamics's robot, Big Dog } \label{fig.dog}
+	\end{center}
+\end{figure}
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=1.5in]{PETMAN.png}
+		\caption{Boston Dynamics's robot, PETMAN }  \label{fig.man}
+	\end{center}
+\end{figure}
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+
+While robotics have been used on assembly lines, mainly in the form of robotic arms, the company "Rethink", rethinks the role robots can play on the assembly line. Their Baxter robot is capable of being taught by an employee what task it needs to perform. It then learns its task by the employee moving Baxter's arms to locations it needs to be at, what object to pick up, where to place that object, etc. From there, the robot remembers its task and will continue to do that task all day and all night, saving costs and improving efficiency. Kiva Systems developed a robot for use in a warehouse setting. By having a swarm of fifty or more robots, these robots can carry platforms of merchandise to various sections of a warehouse while crossing other robots paths without collision.
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=1.5in]{Baxter_robot.png}
+		\caption{Rethinks's Baxter robot }  \label{fig.baxter}
+	\end{center}
+\end{figure}
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=2in]{Kiva-Systems.jpg}
+		\caption{Kiva Systems}  \label{fig.kiva}
+	\end{center}
+\end{figure}
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+
+Even though each of these robots have wildly different tasks that they need to accomplish they all make use of various sensors that enable the robot to see and interact with the world around them. Just as we have different senses that each accomplish different task, such as our eyes for sight or ears for hearing, robots have a wide array of different sensors that can be mounted on them that allow them to see more of their environment. Some of these sensors include:
+\begin{itemize}
+	\item \textit{Cameras} for visually seeing the environment
+	\item \textit{Sonars} for obstacle avoidance and determining the distance of an object 
+	\item \textit{Laser Rangefinders} for obstacle avoidance and determining the distance of an object
+	\item \textit{Encoders} to determine how many rotations a wheel turns on a robot, which would be used to determine how far a robot traverses
+	\item \textit{GPS} to determine where the robot is in the world
+	\item \textit{Accelerometers} to determine acceleration on a robot
+\end{itemize}
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=2in]{sonar.png}
+		\caption{Sonar Cone}  \label{fig.sonar}
+	\end{center}
+\end{figure}
+
+The more sensors that are employed on a robot leads to better perception of the environment. However, with more sensors to use this can lead to vastly more complex systems. Also, sensors aren't always completely accurate in their objective. For instance, sonars are useful for obstacle avoidance and they are much cheaper than using a laser rangefinder, however, the designer of the robot needs to take into account that sonar signals propagate in a 20$^\circ$ - $40^\circ$ cone as shown in Figure \ref{fig.sonar}. Depending on the implementation, the sonar will record the object closest to it in that cone. Also, if the robot is driving in an environment where there are soft surfaces, the surface may potentially absorb most of the energy that the sonar emits. If the robot encounters an object that is positioned at an angle, the sonar signal will bounce of that angle and potentially get lost in transmission leading to the robot not even seeing the object, or if it does get the signal back after coming off of the angled surface, it may detect an object that is located on the left or right side of the robot, causing the robot to see a virtual object that is further away from it than what is actually the case. Knowing the characteristics of each sensor that one wishes to use on a robot can help when it comes time for testing your system as you are now able to make corrections for what could possible happen and develop algorithms to correct for error.
+
+The use of sensors alone won't help you accomplish your objects as different control algorithms need to be developed in order to actually control the robot. In the past few decades, much research has been conducted to help solve problems with robots. Such topics include autonomous navigation, robot localization, visual servoing, artificial intelligence, networked systems, and developmental robotics. The work we accomplished involved the use of autonomous navigation, localization, visual servoing, and networked systems.
+
+Our research focuses on three parts: Vision-Based Navigation, Map Building, and Formation Control on a nonholonomic robot. In our vision-based navigation, we implemented a color-based line following control while using the Bug 2 algorithm for obstacle avoidance in the event that the robot detects an obstacle covering the line it was following. Also, by using stereo-vision, we allowed for a robot to follow a ball. In our Map Building, with the use of sonars and Fuzzy Logic, the robot was able to record the position of static objects that it detected in the environment. And in our robot formation and trajectory controls, we derive equations based on our robot model that will allow a group of three robots to follow a trajectory and formation specified by our algorithms.
+
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+\newpage
+\section{Vision-Based Navigation}
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+In this section, we present the vision-based navigation control for mobile robots, which include the design and implementation of path-following control and ball tracking control. This section is organized as follows. Subsections \ref{sec:robotmodel} and \ref{sec:cameramodel} provide the robot model and camera model. In subsection \ref{sec:imagepro}, the image processing techniques used in the vision-based control design are covered. Subsection \ref{sec:linecontrol} describes the design of path-following control and ball tracking control, and the implementation results are provided in subsection \ref{sec:ball}.
+
+%  This section will cover various image processing techniques used in our implementation, visual servoing, our robot and camera model, and our implementation.
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\subsection{Robot Model} \label{sec:robotmodel}
+
+Our robot used is a nonholonomic robot and define our robot model as shown below in figure \ref{fig.model}.
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=3in]{robot_model.png}
+		\caption{Our robot model.}  \label{fig.model}
+	\end{center}
+\end{figure}
+
+Our robot is position in the global inertial frame, represented by $(X_I, Y_I)$ with respect to the robot frame, represented by $(X_R, Y_R)$. The robot is located at $P$ in the frame which is represented by $P = [x,y,\theta]^T$.
+
+We can then obtain the rotation matrix of the robot frame with respect to the inertial frame by
+
+\[R_r^l = \left[\begin{matrix} cos\theta & -sin \theta \\ sin\theta & cos \theta \end{matrix}\right]\] \label{eq:matrix} 
+
+\begin{eqnarray}
+	\begin{array}{lll}
+		\dot{x}& =& v\cos\theta \\
+		\dot{y} &=& v\sin\theta \\
+		\dot\theta &=& \omega 
+	\end{array} \label{eq:robotmodel}
+\end{eqnarray}
+
+We can implement feedback controls to dynamically adjust the velocity and rotational velocity of the robot in equation \ref{eq:robotmodel}. Such applications of the feedback control allows us to gradually speed up or slow down our robot in the event it is reaching its target or approaching an obstacle. This allows for more fluid movement on the robot and less jerky movements. This also forms the basis for our formation controls we derive later in section \ref{sec:formation}.
+
+\subsection{Pin-Hole Camera Model} \label{sec:cameramodel}
+
+A pin-hole camera was used in our research which model is shown below.  \footnote{Image acquired from www-scf.usc.edu/\textasciitilde boqinggo/Stitching.htm}
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=4in]{pinhole_camera.png}
+		\caption{Pin-Hole Camera Model}. \label{fig.pinhole}
+	\end{center}
+\end{figure} 
+
+
+When the camera takes an image, it takes a three dimensional environment and transposes it onto a two dimensional image frame. In this process it's fairly simple to determine the position of an object of interest or visual feature by finding the $(x,y)$ coordinates of the pixels that are located at on the image frame that line up with the object of interest. We can extract these $(x,y)$ coordinates by the following two equations,
+
+\begin{eqnarray}
+	\begin{array}{ll}
+		x = f\frac{X}{Z} \\
+		y = f\frac{Y}{Z}
+	\end{array} \label{eq:pin-hole}
+\end{eqnarray}
+
+Where $X$, $Y$, and $Z$ are world coordinates that are projected onto the image frame, $x$ and $y$ are the actual $(x,y)$ pixel coordinates located on the image frame, and $f$ is the focal length of the pin-hole camera. 
+
+By using a single pin-hole camera, we lose information in this process as it is effectively removing a dimension from the environment, losing any depth perception. When using stereo-vision we are incorporating the use of an additional pin-hole camera. If the system is tracking an object that is visible in both image frames of a stereo-camera and we know its location within the frame, the focal length of the camera, and the distance between the two cameras, we can determine the distance of the object relative to the camera. Our stereo-camera model is shown below.
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=3in]{camera_model.png}
+		\caption{Stereo-Vision Model.}  \label{fig.stereo}
+	\end{center}
+\end{figure}
+
+From this model, we can extract the following equations.
+
+\begin{eqnarray}
+	\begin{array}{ll}
+		\frac{f}{z} = \frac{u_{l}}{x} \\ \\
+		\frac{f}{z} = \frac{-u_{r}}{b-x}
+	\end{array}
+\end{eqnarray}
+
+where $f$ is the focal length, $z$ is the depth, $b$ is the distance between the two cameras, $u_l$ is the location of the target in the left camera's image frame, and $u_r$ is the location of the target in the right camera's image frame. Solve for $z$ and you are able to produce the depth of an object with respect to the camera.
+
+\begin{equation}
+	z = b\frac{f}{u_{l} - u_{r}} 
+\end{equation}	\label{eq:stereovision}
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+
+\subsection{Image Processing} \label{sec:imagepro}
+
+ In this project, in order to control our robots movements we had to employ some standard image processing techniques to allow the robot to interpret information it receives from the camera. By using the techniques presented in \cite{ImageProcessingTextBook} we were able to accomplish this task.
+
+Image processing refers to taking a digitized image, extracting the raw data from said image, and perform various manipulations on the image in order to improve its quality. We then take the processed image and pass it to our robot system to then analyze the image and make control decisions based on the visual features it can extract from the processed image. There are many different stages of image processing which encompass image capture, preprocessing, segmentation, model fitting, motion prediction, and qualitative/quantitative conclusions. Not all of these stages are required for image processing as it depends on the application you wish to use and these stages may not always occur in any particular order. In our work, we dealt with image capture, preprocessing, and segmentation.
+
+There are some flaws associated with using cameras for robot control. For one, you lose information with ever frame you capture. Humans have two eyes to view our environment, and as such, we have the ability to determine depth. When a camera takes an image, it is effectively taking a three dimensional scene and pushing it onto a two dimensional frame. Stereo-vision, which incorporates the use of multiple cameras allows for your system to have depth perception. However, using vision can be taxing on systems performance, and the use of more cameras can slow down computation time. 
+
+There is always noise present on images and, if not addressed, can negatively affect the efficiency and performance of robot control. There is also a potential for too much data, especially if one needs to save the frames captured by the camera to form a video. For example, a particular camera may record video at 25 frames per second that results in 225 MB of data in a second. A minute of recording results in 13.5 GB of data a minute. Unless compression is used, your system may run out of space to save the video you are trying to record. 
+
+Brightness present on an image can either positively or negativity affect the performance on the system. If the environment is too dark, the robot will not be able to extract any visual features on the image frame. If lightning conditions are ideal, then the robot will perform as expected. If it is too bright, the robot will also not be able to extract any useful features off of the image frame. 
+
+Interpretation of what is present on the image frame also poses a big problem in robot control. For instance, when looking at a ball, we know what we are seeing as we were taught to recognize it and call it a ball. In the case with a robot, it is a blank slate and has no prior knowledge of what a ball is or what it looks like. We can use algorithms to teach the robot to recognize what a ball is but suppose the robot sees something that may look like a ball, but due to its current perspective, it confused what was actually a wheel and thought it was a ball. 
+Through the use of image processing, we can address each of these issues and extract useful data out of the image frame to better control the robot.
+
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\subsubsection{Pre-processing}
+
+When a camera takes a digital image, it quantizes the image into a matrix with \textit{M} rows and \textit{N} columns where each value in the matrix is equal to one pixel. When we acquire this data, we can then start on the most important aspect of image processing: pre-processing. In pre-processing, the purpose is to enhance and restore the image. There are two groups in pre-processing that makes use of either smoothing operators or gradient operators. Smoothing can help combat the effects of noise and other fluctuations on the image. Smoothing essentially removes the high frequency values on the image by passing the image through a low-pass filter. However, a side-effect of this causes useful data to become suppressed, such as dulling sharp edges that could be used in later steps of image processing. Gradient operators are the opposite of smoothing as they suppress low frequencies of the image in order to bring out edges. A side-effect of this is that noise can become more prevalent due the nature of white noise. 
+
+Edge detection is used to determine edges in an image. Edges are defined as pixels where intensity changes abruptly, such as a black line on a white background. However, this can lead to issues as were do we define an edge as demonstrated in figure \ref{fig.edge}. In the example of the black line on a white background, it's fairly simple to determine the edge as we can see the pixel values from black to white differ vastly. But suppose we have a gray line instead of a black line on the white background. Would our edge detection still see this line as an edge?  
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=3in]{Edges.png}
+		\caption{Uncertainties in edge detection}  \label{fig.edge}
+	\end{center}
+\end{figure}
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+By using gradient operators, we can enhance the edges to make it clearer as to what is an edge and what is not an edge.
+
+To combat the issue of having a image appear too bright or too dark, we can implement pixel brightness transformation. One such method is the histogram equalization. In Figure \ref{fig.histo}, the top image shows a scene with its corresponding histogram brightness levels. Most of the values are centered around a gray-scale range of 125-200. Once we apply the histogram equalization, it stretches the histogram to encompass the entire spectrum of our gray scale levels, thereby making the original dark pixels darker and the original bright pixels brighter.
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=2.5in]{histo.png}
+		\caption{An example of Histogram Equalization.}  \label{fig.histo}
+	\end{center}
+\end{figure}
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+Another pre-processing technique corrects for geometric distortions that are caused by the camera itself. In figure \ref{fig.original}, you can see a curving present around the edges of the image. 
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=3in]{originalImage.png}
+		\caption{The original image before image rectification was applied.}  \label{fig.original}
+	\end{center}
+\end{figure}
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+To counteract this issue, geometric transformation, also known as image rectification, can be used to. This can be done in two steps, 1) pixel coordinate transformation, which makes our coordinates of the input pixel to a point in the output image, and 2) find a point in the digital image which matches the transformed point and find the brightness level associated with it. From there we can approximate and correct for error due to the distortion. In the case of our platform, we were provided software that does this correction for us, which can be seen in figure \ref{fig.rect}
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=3in]{rectifiedImage.png}
+		\caption{The final rectified image.}  \label{fig.rect}
+	\end{center}
+\end{figure}
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+By combining these various aspects of pre-processing, we can now lead to the next stage of image processing, Segmentation.
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\subsubsection{Segmentation}
+
+The objective behind segmentation is to divide an image into parts that have a strong correlation with objects contained in the image. Segmentation can be divided into three groups: edge-based segmentation, region-based segmentation, and thresholding. Edge-based segmentation relies on differences in gray-level, color, texture, and other visual features present in the image. Region-based segmentation focuses on a section of the image to search for visual features. Threshold based segmentation is based solely on brightness or gray-levels of the image pixels. Based on a threshold specified, the system separates objects of interest that match the threshold values apart from background. In the case of color detection, we can first specify what color you want to detect and the system will show you a binary image based on that threshold. Figure \ref{fig.compare} demonstrates this. A threshold was set based on the red lines hue, saturation, and brightness values (HSV). From there, the system creates the binary image and shows all objects that is within the specified threshold as white in the image, all other colors that doesn't match that threshold is blacked out.
+
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=5in]{compare.png}
+		\caption{The original image on the left and the binary image on the right. We are detecting the red lines which shows up as white in the binary image.}  \label{fig.compare}
+	\end{center}
+\end{figure}
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+A form of edge based segmentation is the Hough Transform. The hough Transform was original conceived to detect curves and straight lines. Since its inception, the Hough Transforms has found applications in object detection and recognition. To explain the Hough Circle Transform, first lets assume we have a uniformly bright background with a dark circle in view of a specified radius (See Figure \ref{fig.hough}). The Hough Transform first looks for dark pixel values. As it detects the dark pixel values, a locus, or collection of points, of possible center points of the circle being detected can then be found. This can then form a circle with the same radius of the circle being detected. If the position of the potential circle centers are generated for all dark pixel values present in the original image, the frequency can be determined with which each pixel of the image occurs as an element of the circle-center position. From there, the center of the circle is now known.
+
+% % % % % % % % % % % % % % LINE UP SIDE BY SIDE% % % % % % % % % % % % % % % % %
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=6in]{hough.png}
+		\caption{The different steps taken in the Hough Transform}  \label{fig.hough}
+	\end{center}
+\end{figure}
+
+
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\subsection{Visual Servoing}
+
+Much research has been done in the past few decades for computer vision and robot control. In its essence, systems that make use of computer vision for robot control use a visual-feedback closed loop control, also referred to as visual servoing \cite{TutorialVisualServo}. Visual servoing requires the use of image processing, computer vision and control theory \cite{VisualServoingBook}. Taking it a step further, visual servoing can be put into two separate categories: pose-based visual servoing (PBVS) and image-based visual servoing (IBVS).
+
+In PBVS, data is extracted from the image and used in conjunction with a model of the target and a known camera device which is then used to estimate the position of the target with respect to the camera. In IBVS, no prior knowledge of the environment is required and robot control is calculated based on image features directly viewed \cite{TutorialVisualServo}\cite{FeatureDepthIBVS}.	
+
+
+Depending on the task at hand, PBVS and IBVS have their share of strengths and weaknesses. Experiments conducted in \cite{VisualServoingPathReaching} shows this. If there is a small initial error, as in if the object of interest or target is within the image frame, than IBVS performs better than PBVS due to the system being able to directly determine where to go based on the features it is currently detecting. When there is a large initial error, as in if the object of interest or target is not within the image frame, PBVS performs better. This is because in a PBVS control, the robot has prior knowledge of its environment as stated previously. 
+
+Our system developed makes use of IBVS as we don't provide our robot with any geometric model of the target or environment. The system only reacts based on certain features that are detected in the image frame. In our experiments, we used a red colored line and a ball for features that our robot can detect.
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+\subsection{Vision-Based Navigation Implementation} \label{sec:visioncontrol}
+ 
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\subsubsection{Robot Platform}
+In our vision-based navigation, we made use of MobileRobots's P3-AT robot. The P3-AT robot is a four wheeled robot with each wheel having its own motor and encoder. There are sixteen sonars with eight running across the front and eight running across the back. There is a laser range finder and GPS unit attached, as well as the Bumblebee2 Stereo Camera, developed by Point-Gray Research, which is attached to a servo motor controller. The Bumblebee2 camera is capable of generating images at 1024x768 at 20 frames per second.  The robot itself contains a full computer inside running Windows XP
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=2in]{p3at.png}
+		\caption{The AmigoBot} \label{fig.p3at}
+	\end{center}
+\end{figure}
+
+Many different software packages were utilized for our experiments. The ARIA framework, developed by MobileRobots, was used to program our robot platform. This framework provides many different classes, each containing a vast library of functions to use. The FlyCapture2 SDK, developed by Point-Gray Research, was used to control the Bumblebee camera and grab images off of it. OpenCV is a library that contains numerous functions and algorithms for image processing. Visual Studio 2010 Express was the IDE used to compile, debug, and link our programs with all coding done in C++. We also had to use Windows Remote Connection Desktop to remotely connect to the P3-AT robot while it was in operation. 
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\subsubsection{Line Following} \label{sec:linecontrol}
+
+The color-based line following made use of thresholding segmentation and was fairly straightforward. The basis of our line following was to have the robot detect and follow a colored line. In the event that there was an obstacle blocking the robot from following the line, the robot would drive around the obstacle and make its way back on the line. Our line following control followed these steps:
+\begin{itemize}
+	\item Set a threshold to detect colors in the HSV color space
+	\item Find moments of the color being detected
+	\item Based on moment values, find the average pixel location of the color in the image frame
+	\item If that pixel location strays outside a specified boundary in the image frame, reorientate itself to keep that average position in the center of the image frame
+	\item If the robot detects an obstacle via its sonars, start the Bug 2 algorithm
+\end{itemize}
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=5cm]{linefollowing.png}
+		\caption{Flow chart of the line-following program}
+	\end{center}
+\end{figure}
+
+
+OpenCV made this task very simple to implement as it contained functions ready to use to apply thresholding, create a binary image and determine the moments. The only difficult aspect was that we had to convert the images that we grabbed off of the Bumblebee2 camera and convert it to a format that OpenCV can recognize. Point-Grey Research was kind enough to supply us with a small program that did just that. One problem that we ran into was the issue of streaming images off of the camera for viewing on the computer. our first attempt was to simply view the images that come off the Bumblebee2's buffer. While this is correct, there need to be a very small delay in the program to actually view the images. A delay of 1 millisecond between viewing the image in the buffer fixed this problem.
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=3in]{Thresholdedimage.png}
+		\caption{The binary image of the robot following the line and the true color image.} \label{fig.color}
+	\end{center}
+\end{figure}
+
+The Bug 2 Algorithm is a simple algorithm that guarantees the robot to get to its target point assuming a solution does exist. In the Bug 2 Algorithm, the robot is given its starting location and its target location. From there it attempts to drive directly to the target on the \textit{m-line}. If the robot encounters an obstacle on the \textit{m-line} then it will follow the boundary of the obstacle until it encounters the \textit{m-line}. It will then break off of the obstacle and continue to follow the \textit{m-line} to its target. Figure \ref{fig.bug2} illustrates this 
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=2in]{bug2.png}
+		\caption{MATLAB Simulation of the Bug2 Algorithm. The green line represents the robots path around the obstacle that was detected. The green dot represents the robots starting location and the blue dot represents the target. The dotted line running across is the m-line. The robot starts at the bottom right of the figure and stops at the top right corner. This simulation makes use of the RVC Robotics Toolkit.} \label{fig.bug2}
+	\end{center}
+\end{figure}
+
+We had our system set up so that when the front two sonars on the robot detect an obstacle that's roughly 500[mm] away from it, it would turn to the right and begin to follow the boundary of the obstacle it encountered by using its sonars on the left side of the robot. We set a threshold distance of 400[mm] - 500[mm] for those side sonars. What this does is that if the robot is in a given distance between that range, it will continue to drive forward. If the sonars detect a distance greater than 500[mm] than the robot will turn slightly to the left to get that distance to be within our threshold values. If the sonars detected a distance of less than 400[mm], the robot would turn slightly to the right. In the event that when the robot was following the boundary and something was detect on the front sonars, the robot would check its left and right sonars that are angled from 30$^\circ$ and 50$^\circ$ relative to the robot. If the left distance returned a value less than the right sonar, it would turn to the right to avoid the obstacle that was detected in front of it, and vice versa for when the right sonar distance value was less than the left distance value. What this does is it tells the robot that which ever distance is greater, that space is more open for it to safely traverse the obstacle that is present in front of it. As soon as the front sonars are clear it will attempt to get back in the threshold distance that we specified to follow the boundary.
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=3in]{robot_line_obstacle.png}
+		\caption{The robot following the obstacle that is blocking it from following the line, as seen behind the robot}
+	\end{center}
+\end{figure}
+
+To get back on the line, when the robot detected the line, it would turn back onto the line and continue to follow the line. This is done by calculating the area of the color present, which is generated by first finding the moments of the colored line, as done for line following. When the average is greater than a specified value, it will see that the line is in full view and will break out of the Bug 2 Algorithm.
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\subsubsection{Ball Following} \label{sec:ball}
+
+Ball following made us of the Hough Circle Transform and stereo-vision. The steps taken for following a ball are as follows:
+\begin{itemize}
+	\item Detect a circular object and find the center position of that object in both of the image frames
+	\item Based on the center position, compare them using equation \ref{eq:stereovision} to determine the distance of the circular objects relative to the camera 
+	\item If the object is further than 2 meters away from the camera, speed up, if less than 2 meters but more than 1 meter, slow down, if less than 1 meter, stop
+	\item If the center position strayed outside a specified boundary, reorientate itself to keep the center in the middle of the image frame
+\end{itemize}
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=5cm]{circle.png}
+		\caption{Flow chart of the Ball Following Program}
+	\end{center}
+\end{figure}
+
+Before we could even begin this task we first had to grab images from both cameras on the Bumblebee2 camera. Grabbing stereo images off the camera requires a slightly different procedure than grabbing an image off of one camera. The Bumblebee2 camera has various registers to control different functions within the module. To select between the left and right camera, there is a register labeled ”PAN” which we needed to write either one of two register values: to select the left camera, we had to write the value 0x82000001 to the PAN register, to select the right camera, we had to write the value 0x82000000 to the PAN register. Switching between these two values in the PAN register allows us to generate stereo images. When streaming stereo images, we created two separate windows to stream images from the left and right camera for viewing. This brought to our attention a peculiar glitch. When viewing either the left camera's images or right camera's images in a window, it would switch back and forth between the two cameras and show the left and right images in the same window, even though that was not how our program was written. This get around this, we placed a small 100-200 millisecond delay between streaming images from the left and right camera. Although this considerable slows down the frame rate we were able to contain the problem. 
+
+From there we made use of the OpenCV function to run the Hough Transform over the images. Every circular object that it detected was recorded and gave us the $(x,y)$ coordinates of it. We noticed that the Hough Transform picked up a lot of false signals, so we applied a Gaussian Blur over the image to remove possible noise. This gave us better results and allowed us to track a ball.
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=3in]{ball.png}
+		\caption{Using the Hough Circle Transform to detect the ball.} \label{fig.circle}
+	\end{center}
+\end{figure}
+
+Another problem was present but we had no control over was the robots internal hardware. The robot was running off of a Intel Pentium M processor running at 1.80 GHz with 512 MB of ram. Grabbing stereo images and doing image processing with the Hough Transform on both image is computational intensive. If the system detected to many false signals, processing would come to a halt and frame rate would drop to somewhere around the region of one frame every five seconds. When running our experiments, we tried to remove anything from the room that could possible interfere with the readings of the Hough Transform.
+
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+\newpage
+\section{Map Building}
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\subsection{Problem Formulation}
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+We wanted our robot to generate a map while traversing an unknown environment by recording data from its sixteen sonars while simultaneously avoiding obstacles. To do so, the robot needed to know the following information:
+\begin{itemize}
+	\item Know its current location relative to the world frame
+	\item Keep track of its angular orientation
+	\item Keep track of each of its sixteen sonars and interpret the data being returned by them
+	\item Record the $(x,y)$ coordinate of obstacles it detects
+	\item Avoid obstacles while generating a map
+\end{itemize}
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=4.25cm]{Mapping.png}
+		\caption{Flow chart of the Map Building Program}
+	\end{center}
+\end{figure}
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\subsection{Localization}
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+%[More information on the localization problem]
+In order for a robot to build a map, it must know where it is located at relative to the world frame at all times, known as localization. It can achieve this through the use of various sensors. The simplest form of localization is using a GPS to pinpoint where a robot is currently located. However, GPS systems aren't very accurate and feasible for such a small scale experiment. The GPS receiver on the P3-AT robot only has a resolution of 1x1 meters. Also, GPS signals are weak so there is a possibility that the signal will get lost during operation of the robot. Other sensors can help better localize the robot. By using encoders, we can determine how far a robot travels by recording how many times the wheels rotate. By using the encoders we can also determine the robots angular position. By using sonars or laser range finders we are able to determine the position of objects in the robots immediate area by taking the distance of the object relative to the robot and labelling its location on a map. 
+
+In our experiments, we took the data that we received off of our robots sixteen sonars to map our an unknown location. In section \ref{sec:mapbuilding} we present our implementation along with making use of Fuzzy logic, which is explained in the underlying section. 
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\subsection{Fuzzy Logic} \label{sec:fuzz}
+In binary logic you have two choices, on or off, true or false, 0 or 1. This provides a guaranteed expected value however it doesn't take into account for uncertainties that may arise in whatever system you are working on. In the case of robotics, we deal with uncertainties on nearly all aspects of our control and design. This is caused by our sensors on the robot itself that may provide you with data that may or may not be correct all of the time. Fuzzy logic is usually employed to overcome the difficulties of modeling an unstructured, dynamically changing environment \cite{Fuzzy1}.
+
+When designing controls for our systems we normally use a sequentiality design but there are two fundamental limitations related to this type of design \cite{Fuzzy1}. 1) It is difficult to get a detailed description of an unstructured environmental and to also take into account all possible details that the system will face. 2) Simulations do not easily take into account non-linear uncertainties, noise, and operation conditions such as lighting, materials in the environment, or defective hardware. 
+
+In the case of our system, we generated a set of data points that represent a generalized location of an obstacle based on a probabilistic value, which we assign to our map, which we discuss in section \ref{sec:mapbuilding}.
+
+%[ADD MORE INFORMATION!] Use \cite{FuzzyMaps} to lead into how we used some of their ideas to generate a map
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\subsection{Map Building Implementation} \label{sec:mapbuilding}
+In \cite{FuzzyMaps}, we used some of their ideas to generate a map. We created three fuzzy maps, one fuzzy map for recording the position of obstacles, which we will label $O$, and one fuzzy map for recording the positions of empty spaces, which we will label $E$. We then perform data fusion on these two fuzzy maps to create a global map, which we will label $G$.
+
+In our implementation we created five matrices of a given size, where each value of the matrix represents a resolution of 100[mm] x 100[mm]. Two matrices were used for our $O$ map. One matrix was for data it currently records, which we will label $O_{old}$ and the other matrix was for the new updated information, which we will label $O_{new}$. Two matrices were used for our $E$ map. As with the $O$ map, we created a $E_{old}$ matrix and a $E_{new}$ matrix for housing old data and newly updated data. The last matrix was used for $G$ which gets updated at the end of execution. When the matrices are first initialized both $O$ matrices and the $G$ matrix are filled with a value of 0 to represent that the map is completely empty. The $E$ matrices are filled with a value of 1 to represent that the map is completely empty.
+
+We used the P3-AT robot for mapping and we made use of all sixteen sonars present on the robot. The basis for mapping was when a particular sonar detects the presence of an obstacle, it would record the $(x,y)$ coordinate of that obstacle based on the current location of the robot in the map. This can be represent by the following two equations
+
+\begin{eqnarray}
+	\begin{array}{ll}
+	x_o = \frac{[ x_R + R cos(\theta_s + \theta_R ) ]}{100} + 1 \\
+	y_o = \frac{[ y_R + R sin(\theta_s + \theta_R ) ]}{100} + 1 
+	\end{array} \label{eq:mapbuilding}
+\end{eqnarray}
+
+Where $ x_o =$ obstacles x position, $y_o =$ obstacles y position, $x_R =$ robot x position, $y_R =$ robot y position, $R =$ sonar distance reading, $\theta_s =$ sonar angular position with respect to the robot, in radians and .$\theta_R =$ robot's angular orientation. However, this doesn't make use of fuzzy logic yet. We can describe our fuzzy implementation with the following diagram shown below.
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=3in]{Obstacle.png}
+		\caption{Our concept of our Fuzzy Map building.} \label{fig.fuz}
+	\end{center}
+\end{figure}
+
+When the robot encounters an obstacle on its sonar, it doesn't just record the position of one point, it records the position of nine different $(x,y)$ coordinates. Based on these nine points, we assign a probabilistic value that, in the case of our $O$ map, an obstacle is currently at that location, and in the case of our $E$ map, that this location is currently occupied. We also introduce a new variable in equation \ref{eq:mapbuilding}, $\delta d$, which is a distance threshold based on the sonar readings. We want our robot to record the position of an obstacle as well as compensate for any error that our sonar may return. We would rather have the robot think an obstacle is closer to it rather than further away to prevent the robot from colliding with the obstacle if the sonar returned a bad reading.
+
+\begin{eqnarray}
+	\begin{array}{ll}
+		x_o = \frac{[ x_R + (R - \delta d) cos(\theta_s + \theta_R ) ]}{100} + 1 \\
+		y_o = \frac{[ y_R + (R - \delta d) sin(\theta_s + \theta_R ) ]}{100} + 1
+	\end{array} \label{eq:mapbuilding_distance}
+\end{eqnarray}
+
+To generate the equations for our nine coordinates, refer to the figure below.
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=2in]{3x3.png}
+		\caption{} \label{fig.fuz}
+	\end{center}
+\end{figure}
+
+For the first column,  
+
+\[C_{1x} = \frac{[ x_R + (R - \delta{d}) cos(\theta_s + \theta_R)]}{100} + 1 \]
+\[C_{1y} = \frac{[ y_R + (R - \delta{d}) sin(\theta_s + \theta_R)]}{100} + 1 \]
+
+\[C_{2x} = \frac{[ x_R + (R - \delta{d}) cos(\theta_s + \theta_R)]}{100} + 1 \]
+\[C_{2y} = \frac{[ y_R + (R - \delta{d}) sin(\theta_s + \theta_R)]}{100} + 1 \]
+
+\[C_{3x} = \frac{[ x_R + (R - \delta{d}) cos(\theta_s + \theta_R)]}{100} + 1 \]
+\[C_{3y} = \frac{[ y_R + (R - \delta{d}) sin(\theta_s + \theta_R)]}{100} + 1 \]
+
+We then assign our probabilistic values to our $O$ map
+
+\[ C_1 = 0.8\cos\theta_s \]
+\[ C_2 = 0.8 \]
+\[ C_3 = 0.8\cos\theta_s \]
+
+For our $E$ map, we assign different values
+
+\[ C_1 = 0.5\cos\theta_s \]
+\[ C_2 = 0.5 \]
+\[ C_3 = 0.5\cos\theta_s \]
+
+
+For the second column we removed the $\delta{d}$ value due to there being a pretty strong chance than an obstacle will be present along those column.,  
+
+\[C_{4x} = \frac{[ x_R + Rcos(\theta_s + \theta_R)]}{100} + 1 \]
+\[C_{4y} = \frac{[ y_R + R sin(\theta_s + \theta_R)]}{100} + 1 \]
+
+\[C_{5x} = \frac{[ x_R + Rcos(\theta_s + \theta_R)]}{100} + 1 \]
+\[C_{5y} = \frac{[ y_R + Rsin(\theta_s + \theta_R)]}{100} + 1 \]
+
+\[C_{6x} = \frac{[ x_R + Rcos(\theta_s + \theta_R)]}{100} + 1 \]
+\[C_{6y} = \frac{[ y_R + R sin(\theta_s + \theta_R)]}{100} + 1 \]
+
+
+
+We then assign our probabilistic values to our $O$ map
+
+\[ C_4 = 1 \]
+\[ C_5 = 0.8\cos\theta_s \]
+\[ C_6 = 0.8\cos\theta_s \]
+
+For our $E$ map, we assign different values
+
+\[ C_4 = 0 \]
+\[ C_5 = 0.5\cos\theta_s \]
+\[ C_6 = 0.5\cos\theta_s \]
+
+In the $O$, a value of 1 means there is an obstacle present. In the $E$ map, a value of 0 means that the location is not empty.
+
+For the third column we add $\delta{d}$ instead of subtracting as if there is an obstacle in the way, then that obstacle will probably extend some distance behind what the sonar initially detects. ,  
+
+\[C_{7x} = \frac{[ x_R + (R + \delta{d}) cos(\theta_s + \theta_R)]}{100} + 1 \]
+\[C_{7y} = \frac{[ y_R + (R + \delta{d}) sin(\theta_s + \theta_R)]}{100} + 1 \]
+
+\[C_{8x} = \frac{[ x_R + (R + \delta{d}) cos(\theta_s + \theta_R)]}{100} + 1 \]
+\[C_{8y} = \frac{[ y_R + (R + \delta{d}) sin(\theta_s + \theta_R)]}{100} + 1 \]
+
+\[C_{9x} = \frac{[ x_R + (R + \delta{d}) cos(\theta_s + \theta_R)]}{100} + 1 \]
+\[C_{9y} = \frac{[ y_R + (R + \delta{d}) sin(\theta_s + \theta_R)]}{100} + 1 \]
+
+We then assign our probabilistic values to our $O$ map
+
+\[ C_7 = 1 \]
+\[ C_8 = 0.8\cos\theta_s \]
+\[ C_9 = 0.8\cos\theta_s \]
+
+For our $E$ map, we assign different values. We chose the value of 1 for the $E$ map because we aren't certain that the obstacle actually does extend some distance behind what the sonar sees, so we assume that spot is empty.
+
+\[ C_7 = 1 \]
+\[ C_8 = 1 \]
+\[ C_9 = 1 \]
+
+When running our program, there was a small delay between refreshing the $O_{new}$ and $E_{new}$ maps by using the data from the $O_{old}$ and $E_{old}$ maps. When we did result the maps we fused the old data with the new map through the bitwise AND and OR operators.
+
+\[ O_{new} = O_{new} \wedge O_{old} \]
+\[ E_{new} = E_{new} \vee E_{old} \]
+
+To fuse the $O_{new}$ and $E_{new}$ data with the global map, we ANDed togeter the $O_{new}$ and the complement of $E_{new}$ as shown below.
+
+\[ G = O_{new} \wedge \neg{E_{new}} \]
+
+While the robot was generating data points and writing it to the maps, it also wanders around the room and avoids obstacles along the way. This step was fairly simple as we just used the data coming off the sonars to have our robot avoid obstacles in the event it got to close to an obstacle. In this step, we made use of our feedback control as shown in \ref{eq:robotmodel}. The robot would keep a constant velocity while it is free to move without colliding with obstacles, but when the robot encounters an obstacle, we compared the minimum distances returned by the two sonars that detected the obstacle, subtracted that from our constant velocity and divided it by six.
+
+\[ v = \frac{min(R_1, R_2) - 200}{6} \]
+
+Where $R_1$ and $R_2$ are the distances from a particular sonar. 
+
+\subsubsection{Results}
+
+We ran our experiments in MobileSim by creating a map of an environment by using the program Mapper3, created by MobileRobots. When the robot finishes operation, it writes the $G$ map to a file that we then used MATLAB to visualize the data captured by the robot. We create a rectangle shape with the dimensions of our map and traced through the file. For every data value that is equal to 1, we drew a rectangle in that location. Our results are shown below.
+
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=3in]{sim.png}
+		\caption{A model of our simulation environment as shown in MATLAB} \label{fig.map}
+	\end{center}
+\end{figure}
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=4in]{SLAM.png}
+		\caption{A model of a different simulation environment as shown in MATLAB} \label{fig.map2}
+	\end{center}
+\end{figure}
+
+Simulations work great but when testing the system in our building, we get fairly poor results. This is possible due to uncertainties with the robots $(x,y)$ position. The encoders are returning values of its position but it could actually be off by a few centimetres. Given how our resolution is only 100[mm] x 100[mm] this can throw off our results considerable. One possible solution to this is to implement a Kalmen filter to accurately determine the position of the robot based on what its sensors are currently recording.
+
+
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+\newpage
+\section{Formation Control}
+We present three control laws for allow a group of three robots to drive in particular trajectories and formations. We first cover how we derived our equations which allow us to generate our different trajectories and formations in section \ref{sec:formation}. We then cover our implementation and experimental results in section \ref{sec:form_control}.
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\subsection{Problem Formulation}\label{sec:formation}
+
+Referring back to our robot model, we will now derive our robot control for controlling steering velocity and rotational velocity by using equation \ref{eq:robotmodel}.
+By defining $v$ as our driving velocity and $\omega$ as our steering velocity, we can define two new equations, $\hat{x} = x + R\cos\theta$ and $\hat{y} = y + R\sin\theta$. We can then generate the following,
+
+\begin{eqnarray}
+	\begin{array}{ll}
+		\dot{\hat{x}} = v\cos\theta - R \sin\theta \omega \\
+		\dot{\hat{y}} = v\sin\theta + R \cos\theta \omega
+	\end{array} \label{eq:xhatyhat}
+\end{eqnarray}
+
+Now let $u_x = v\cos\theta - R \sin\theta \omega$ and $u_y = v\sin\theta + R\cos\theta \omega$ and we can then have a linearized robot model.
+
+\begin{eqnarray}
+	\begin{array}{ll}
+		\dot{\hat{x}} = u_x \\
+		\dot{\hat{y}} = u_y
+	\end{array} \label{eq:linear}
+\end{eqnarray}
+
+By having our designed controls from $u_x$ and $u_y$ we can then compute the real control inputs, $v$ and $\omega$ by,
+
+\begin{equation}
+ \left[\begin{array}{c} v \\ \omega \end{array}\right] = \left[\begin{matrix} \cos\theta & \sin\theta \\ -\frac{\sin\theta}{R} & \frac{\cos\theta}{R} \end{matrix}\right] \left[\begin{matrix} u_x \\ u_ y\end{matrix}\right]  = \left[ \begin{matrix} u_x\cos\theta + u_y\sin\theta \\ -\frac{u_x\sin\theta}{R}+ \frac{u_y\cos\theta}{R}  \end{matrix} \right] \label{eq:controlinput}
+\end{equation}
+
+By equation \ref{eq:controlinput}, we can now control a group of robots in an formation or trajectory that we want.
+
+To have a group of three robots follow a line in a triangle formation, we need to define more robot control laws.
+
+Assume the desired formation trajectory can be defined as
+
+\begin{equation}
+	\psi^d(t) = [x^d(t), y^d(t)]^T \label{eq:desiredformation}
+\end{equation}
+and the desired trajectory for a single robot $i$ is defined as
+
+\begin{equation}
+	\psi_i^d(t) = \psi^d(t) + \sum_{j=1}^2 \alpha_{ij} e_j(t)  \label{eq:trajectory}
+\end{equation}
+
+where $e_j(t)$ are basis vectors that form the moving frame and $\alpha_{ij}$ are constants of determining the formation, we form,
+
+\begin{eqnarray}
+	\begin{array}{ll}
+
+		e_1(t) = \left[\begin{array}{c} e_{11}(t) \\ e_{12}(t) \end{array} \right] = \left[ \begin{array}{c} \displaystyle \frac{\dot{x}_0(t)}{\sqrt{[\dot{x}_0(t)]^2+
+		[\dot{y}_0(t)]^2}} \\ \displaystyle
+		\frac{\dot{y}_0(t)}{\sqrt{[\dot{x}_0(t)]^2+ [\dot{y}_0(t)]^2}}
+		\end{array} \right] \\ \\
+
+		e_2(t) = \left[\begin{array}{c} e_{21}(t) \\ e_{22}(t) \end{array} \right] = \left[ \begin{array}{c}
+		\displaystyle -\frac{\dot{y}_0(t)}{\sqrt{[\dot{x}_0(t)]^2+
+		[\dot{y}_0(t)]^2}} \\ \displaystyle
+		\frac{\dot{x}_0(t)}{\sqrt{[\dot{x}_0(t)]^2+ [\dot{y}_0(t)]^2}}
+		\end{array} \right].
+	\end{array} \label{eq:vectors}
+\end{eqnarray}
+
+And our control for the $i$ robot, $u_i = [u_{ix}, u_{iy}]^T$ is given by
+
+\begin{equation}
+	u_i = k \sum\limits_{j}\left(\psi_j - \psi_we + \sum\limits_{l = 1}^{2}(a_{il} - a_{jl})e_l\right)  + \psi_i^d \label{eq:robot1control}
+\end{equation}
+
+where $\psi_j = [\hat{x_i}, \hat{y_i}]^T$, and $k$ is some constant.
+
+
+Based on equations \ref{eq:desiredformation}, \ref{eq:trajectory}, \ref{eq:vectors}, and \ref{eq:robot1control} we can begin to generate control laws for our triangle formation and circular trajectory.
+
+Our desired formation trajectory is given as $\psi^d(t) =[0.2t,0.2t]^T$ and our formation shape as
+
+\[ a_1 = [0,0]^2 , a_2 = [1,0.5]^2, a_3 = [1, -0.5]^T \]
+
+\[ e_1 = [1/\sqrt{2}, 1\sqrt{2}]^2, e_2 = [-1/\sqrt{2}, 1/\sqrt{2}]^2 \]
+
+We can develop our control inputs to have our robots follow a line while staying in a triangle formation.
+
+Control for robot 1:
+\[ u_{1x} = k(\hat{x_2} - \hat{x_1} - 0.5/\sqrt{2}) + 0.2 \]
+\[ u_{1y} = k(\hat{y_2} - \hat{y_1} + 1.5/\sqrt{2}) + 0.2 \]
+ 
+Control for robot 2
+\[ u_{2x} = k(\hat{x_3} - \hat{x_2} - 1.0/\sqrt{2}) + 0.2 \]
+\[ u_{2y} = k(\hat{y_3} - \hat{y_2} + 1.0/\sqrt{2}) + 0.2 \]
+ 
+Control for robot 3
+\[ u_{3x} = k(\hat{x_1} - \hat{x_3} + 1.5/\sqrt{2}) + 0.2 \]
+\[ u_{3y} = k(\hat{y_1} - \hat{y_3} + 0.5/\sqrt{2}) + 0.2 \]
+
+By plugging these set of equations back in equation \ref{eq:controlinput}, we get our desired formation.
+
+
+Generating equations to allow robots to drive in a circle uses the same concepts from the above equations, with the only difference being a modification in the desired trajectory we want the robots to travel in.
+
+We give our desired formation contour by $\psi^d(t) = [2\cos t, 2\sin t]^T$ and our corresponding moving frame is given by
+\[e_1(t) = [-sin t, cos t]^T\]
+\[e_2(t) = [-cos t, sin t]^T\]
+
+And our formation parameters are given as $a_{11} = 0$, $a_{12} = 0$, $a_{21} = -1$, $a_{22} = 1$, $a_{31} = -1$, $a_{32} = -1$. Our desired trajectory for each robot is given by,
+
+% % % % % % %FIX EQUATIONS. NOT CORRECT % % % % % % % % % % % % % % % % % % % % %
+\[	\psi_1^d(t) = \left[\begin{matrix} 2\cos t \\ 2\sin t \end{matrix}\right], 
+\psi_2^d(t) =	  \left[\begin{matrix} \cos t + \sin t \\ \sin t + \cos t \end{matrix}\right], 
+\psi_3^d(t) =	  \left[\begin{matrix} 3\cos t + \sin t \\ 3\sin t - \cos t \end{matrix}\right]	 \]
+
+Our control inputs for a circular trajectory are defined as
+
+Control for robot 1:
+\[ u_{1x} = k(\hat{x_2} - \hat{x_1} - cos t + sin t ) - 2 sin t \] 
+\[ u_{1y} = k(\hat{y_2} - \hat{y_1} - sin t - cos t ) + 2 cos t \] \\ 
+Control for robot 2:
+\[ u_{2x} = k(\hat{x_3} - \hat{x_2} - 2 sin t ) - sin t + cos t \] 
+\[ u_{2y} = k(\hat{y_3} - \hat{y_2} + 2 cos t ) + cos t - sin t \] \\ 
+Control for robot 3:
+\[ u_{3x} = k(\hat{x_1} - \hat{x_3} + cos t + sin t ) - 3 sin t + cos t \] 
+\[ u_{3y} = k(\hat{y_1} - \hat{y_3} + sin t - cos t ) + 3 cos t + sin t \] 
+ 
+
+ 
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\subsection{Formation Control Implementation} \label{sec:form_control}
+The past two experiments that dealt with map generation and visual servoing made use of the P3-AT robot. In this experiment, we made use of the AmigoBot, shown in the figure below. It's a smaller, less complicated robot with only eight sonars, three wheels with two wheels used for robot movement and the back wheel for stability, and wireless communications. We used these robots for a proof of concept of our formation control. We made use of the ARIA framework, MobileSim, and Visual Studio 2010 express to program the robots and test our controls in a simulation.
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=3in]{amigobot.png}
+		\caption{The AmigoBot.} \label{fig.circle}
+	\end{center}
+\end{figure}
+
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=2cm]{FormationControl.png}
+		\caption{Flow chart of the Formation Control Programs5}
+	\end{center}
+\end{figure}
+
+To allow for our robot control to work properly, two of the robots need to know the location of the lead robot prior to execution of the program. When a user starts up the program, they are greeted with a prompt asking for the $(x,y)$ coordinates of each of the robots. Whichever robot the user wants to make the lead robot, they need to specify it's $(x,y)$ coordinates at $(0,0)$. The two other robots coordinates are based on the offset distance from itself to the lead robot. For instance, if Robot 2 is one meter away on the x direction and two meters away on the y direction, the user would type in the console $(1000,2000)$ for the coordinates.
+
+After each robot is given its initial coordinates, the program will start up and the three robots will immediately converge to the desired formation. For instance, in the case for the triangle formation, if all three robots are lined up side by side with each other, the robots will first drive out to the desired shape and will not follow the line trajectory until each robot is in it's correct location relative to each other. 
+
+When running through our simulations, we noticed that something wasn't quite right in the converging formation, triangle formation and circular formations. If you notice in the control equations above, a robot only needs to know the $(x,y)$ position of one other robot. The purpose of this is suppose you have a situation where you need to control dozens of independent robots at the same time. Giving each individual robot the position of every single robot isn't feasible. 1) It will take a long time to even code that in your program, and 2) Having each robot keep track of all of the other robots consumes resources and could prevent you from attempting to do other activities with your swarm of robots. 
+
+However in our case, our robots initially converged in the formation it needed to be in, but it kept oscillating between each other and crossing each others paths leading to collisions between the robots. 
+This effect is clearly visible in figure \ref{fig.badrobot}.
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=4in]{robotsim.png}
+		\caption{Oscillations between our three robots in the triangle formation. You can see a slight triangle formation by looking at the robots tracks (the red lines) and the virtual line its following, but it clearly wasn't the effect we wanted to create.} \label{fig.badrobot}
+	\end{center}
+\end{figure}
+
+We had to make a slight modification to our program to correct for this. We were required to give each robot the location of the two other robots it was with to complete the formation in each of our formation controls.
+
+For our converging to a point:
+
+Control for robot 1:
+\[ u_{1x} = k(\hat{x_2} - \hat{x_1}) + k(\hat{x_3} - \hat{x_1}) \]
+\[ u_{1y} = k(\hat{y_2} - \hat{y_1}) + k(\hat{y_3} - \hat{y_1}) \]
+ 
+Control for robot 2
+\[ u_{2x} = k(\hat{x_3} - \hat{x_2}) + k(\hat{x_1} - \hat{x_2}) \]
+\[ u_{2y} = k(\hat{y_3} - \hat{y_2}) + k(\hat{y_1} - \hat{y_2}) \]
+ 
+Control for robot 3
+\[ u_{3x} = k(\hat{x_1} - \hat{x_3}) + k(\hat{x_2} - \hat{x_3}) \]
+\[ u_{3y} = k(\hat{y_1} - \hat{y_3}) + k(\hat{y_2} - \hat{y_3}) \]
+
+For our triangle formation:
+
+Control for robot 1:
+\[ u_{1x} = k(\hat{x_2} - \hat{x_1} + \hat{x_3} - \hat{x_1} - 2) + 0.2 \]
+\[ u_{1y} = k(\hat{y_2} - \hat{y_1} + \hat{y_3} - \hat{y_1})		   \]
+ 
+Control for robot 2
+\[ u_{2x} = k(\hat{x_3} - \hat{x_2} + \hat{x_1} - \hat{x_2} + 1) + 0.2 \]
+\[ u_{2y} = k(\hat{y_3} - \hat{y_2} + \hat{y_1} - \hat{y_2} + 1.5)	   \]
+ 
+Control for robot 3
+\[ u_{3x} = k(\hat{x_1} - \hat{x_3} + \hat{x_2} - \hat{x_3} + 1) + 0.2 \]
+\[ u_{3y} = k(\hat{y_1} - \hat{y_3} + \hat{y_2} - \hat{y_3} - 1.5)	   \]
+
+
+For our circle formation:
+
+Control for robot 1:
+\[ u_{1x} = k(\hat{x_2} - \hat{x_1} + \hat{x_3} - \hat{x_1} - \sin t) - 2\sin t \]
+\[ u_{1y} = k(\hat{y_2} - \hat{y_1} + \hat{y_3} - \hat{y_1} + \cos t) + 2\cos t \]
+ 
+Control for robot 2
+\[ u_{2x} = k(\hat{x_3} - \hat{x_2} + \hat{x_1} - \hat{x_2} - 1.5\sin t + 0.5\cos t) - \sin t + \cos t	\]
+\[ u_{2y} = k(\hat{y_3} - \hat{y_2} + \hat{y_1} - \hat{y_2} + 1.5\sin t - 0.5\cos t) + \sin t + \cos t  \]
+ 
+Control for robot 3
+\[ u_{2x} = k(\hat{x_3} - \hat{x_2} + \hat{x_1} - \hat{x_2} - 0.5\sin t - 0.5\cos t) - 3\sin t + \cos t	\]
+\[ u_{2y} = k(\hat{y_3} - \hat{y_2} + \hat{y_1} - \hat{y_2} + 0.5\cos t - 0.5\sin t) + 3\sin t + \sin t  \]
+
+
+It should be noted that in our circular formation, we originally want our robots to drive in a triangle formation while following a circle trajectory. We noticed an issue with our implementation that caused us to change the triangle formation to having the robots follow each other in a line. Our lead robot that we specified would never converge to the position that our control law specified and we weren't sure of the reason. The triangle formation control had no problems with this nor in our converging control.
+
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=5in]{converge1.png}
+		\caption{Converging to a Point: The left image shows the initial positions for each robot. The right image shows the final outcome.} \label{fig.converge}
+	\end{center}
+\end{figure}
+
+With our modified control laws, our robots performed as expected. In Figure \ref{fig.converge} we can see the robots converging to a point. There is a small error that can be seen in the right image. The robots don't meet up at an exact point due to when we were measuring the distance of the robots relative to the lead robot, we only had a ruler than measured in imperial units and our robot platform ran on metric units. We had to estimate the length of a meter given inches which caused a slightly off convergence. This effect is seen also in our triangle formation 
+
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=5in]{tri1.png}
+		\caption{The sequence of frames that demonstrate the triangle formation and line following trajectory.} \label{fig.triangle}
+	\end{center}
+\end{figure}
+
+
+In our triangle formation, besides the lack of a meter stick, there were no visible issues in both simulations and experiments. The robots first converge to the triangle formation, then they drive off on the virtual line we specified. These results are shown above in Figure \ref{fig.triangle}.
+
+
+\begin{figure}[htp!]
+	\begin{center}
+		\includegraphics[width=3in]{circle.png}
+		\caption{Simulation of our circle formation.} \label{fig.circle1}
+	\end{center}
+\end{figure}
+
+
+We could only run a simulation of our circular formation as our lab wasn't large enough to accommodate the trajectory of our robots. In Figure \ref{fig.circle1} we can see in the bottom right side of the circle that the robots converge onto the line we specified and based on their trajectory (shown as the red lines) they follow the circle shape fairly well. There is still some minor fluctuations while following the circle trajectory which can be seen as the shape of the circle has minor changes on the left and right sides.
+
+
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\newpage
+
+
+\section{Conclusion}
+
+We presented our three different implementations and uses for our robot by using visual feedback to control a robot through the use of a pin-hole camera and various image-processing technique, mapping of an unknown environment through the use of our robot's array of sonars and fuzzy logic, and deriving robot control laws that allow a group of three robots to drive in a formation and trajectory. Even with these three implementations, there is still much work to be done. 
+
+The camera on our robot is attached to a servo motor controller that allows the camera to pan and tilt. By using this motor, we could develop more complex control algorithms through the use of different visual servoing techniques such as having our robot search for an object of interest by turning its camera to scan an environment. We also would like to implement visual servoing schemes that make use of epipolar geometry and include more advanced object recognition techniques.
+
+The issues we faced with mapping in a real environment could potentially be solved by implementing a Kalmen Filter to accurately determine the position of our robot at a given time instant. Once this is implemented, it would be possible for our robot to explore a static environment and avoid obstacles by using the information from our map and not have to rely strictly on sonar information. Also, with the use of our stereo-camera, it is possible to generate a three dimensional depth map. We want to use this information to assist in the map generation and create a three dimensional model of the environment that the robot can refer to during operation to make decisions.
+
+\newpage
+
+\section{Acknowledgements}
+
+we would like to thank our adviser, Dr. Wang for guiding me throughout our project. we would also like to thank Dr. Obeng and Dr. Wu for providing support throughout our project and throughout our undergrad education. W would also like to thank Mr. Bethelmy for helping me debug some issues we had during our project.
+
+\newpage
+
+\begin{thebibliography}{1}
+	\bibitem[1]{TutorialVisualServo}
+	S. Hutchinson, G. D. Hager, P. I. Corke,  \emph{A Tutorial on Visual Servo Control}, IEEE Trans. Robot. Automat, 1996, vol 12, no. 5: pp 651-670.
+
+	\bibitem[2]{VisualServoingBook}
+	F. Chaumette, S. Hutchinson, \emph{Visual Servoing and Visual Tracking}, Springer Handbook of Robotics, Ch. 24, Springer 2008
+
+	\bibitem[3]{VisualServoingPathReaching}
+	A. Cherubini, F. Chaumette, G. Oriolo, \emph{Visual Servoing for Path Reaching with Nonholonomic Robots}, Cambridge University Press 2011
+
+	\bibitem[4]{ImageProcessingTextBook}
+	M. Sonka, V. Hlavac, R. Boyle \emph{Image Processing, Analysis, and Machine Vision}, Thompson Learning, Toronto, Ontario 2008
+
+	\bibitem[5]{FeatureDepthIBVS}
+	A. De Luca, G. Oriolo, P. R. Giordano \emph{Feature Depth Observation for Image-Based Visual Servoing: Theory and Experiments}, The International Journal of Robotics Research, Oct 2008; vol. 27, 10: pp. 1093-1116.
+
+	\bibitem[6]{Epipolar}
+	G. L. Mariottini, G. Oriolo, D. Prattichizzo \emph{Image-Based Servoing for Nonholonomic Mobile Robots Using Epipolar Geometry}, IEEE Transactions on Robotics, Feb. 2007, Vol 23, no. 1: pp 87-100
+
+	\bibitem[7]{Fuzzy1}
+	F. Cupertino, V. Giordano, D. Naso, L. Delfine \emph{Fuzzy Control of a Mobile Robot}, IEEE Robotics and Automation Magazine, Dec. 2006, pp 76-107
+
+	\bibitem[8]{Fuzzy2}
+	K. Valavanis, L. Doitsidis, M. Long, R. R. Murphy \emph{A Case Study of Fuzzy-Logic-Based Robot Navigation}, IEEE Robotics and Automation Magazine, Sep. 2006, pp 93-107
+
+	\bibitem[9]{FuzzyMaps}
+	G. Oriolo, G. Ulivi, M. Vendittellwe \emph{Real-Time Map Building and Navigation for Autonomous Robots in Unknown Environments}, IEEE Transactions on Systems, Man and Cybernetics, June 1998, Vol 28. No. 3: pp 316-333
+
+\end{thebibliography}
+
+\newpage
+
+\lstset{breaklines=true}
+\begin{footnotesize}
+
+
+\section{Appendix}
+
+\subsection{Color-Based Line Following Source Code}
+
+\lstinputlisting{line_following.cpp}
+\newpage
+
+
+\subsection{Stereo-vision Ball Following Source Code}
+
+\lstinputlisting{opencv_detect_circles.cpp}
+\newpage
+
+\subsection{Map Building Source Code}
+
+\lstinputlisting{aria_robot_mapping.cpp}
+
+\newpage
+\subsection{Map Building Script in MATLAB}
+\lstinputlisting{map.m}
+\newpage
+
+\subsection{Formation Control Source Code: Converging}
+
+\lstinputlisting{threeRobots_converge.cpp}
+\newpage
+
+\subsection{Formation Control Source Code: Triangle Formation}
+\lstinputlisting{three_robots_triangle_formation.cpp}
+\newpage
+
+\subsection{Formation Control Source Code: Circle Formation}
+\lstinputlisting{threeRobots_circle_formation.cpp}
+
+\end{footnotesize}
+
+\end{document}          
